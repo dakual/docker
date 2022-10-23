@@ -1,0 +1,10 @@
+# Application
+web/app/vendor/
+data/db/dumps/*
+data/db/mysql/*
+
+# VSCode
+.vscode/
+
+# SSL Certs
+etc/ssl/*
