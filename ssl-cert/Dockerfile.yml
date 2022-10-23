@@ -1,0 +1,16 @@
+FROM alpine:3.16
+
+ENV SSL_CERT=/data/tls/server.crt \
+    SSL_KEY=/data/tls/server.key \
+    SSL_CSR=/data/tls/server.csr \
+    SSL_SUBJ_COUNTRY="TR" \
+    SSL_SUBJ_STATE="Antalya" \
+    SSL_SUBJ_LOCALITY="Alanya" \
+    SSL_SUBJ_ORGANIZATION="IT" \
+    SSL_SUBJ_ORGANIZATIONAL_UNIT="IT"
+
+RUN apk --no-cache add openssl
+
+COPY ssl.sh /usr/local/bin
+
+CMD ["/usr/local/bin/ssl.sh"]
