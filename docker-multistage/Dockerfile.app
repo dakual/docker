@@ -24,7 +24,7 @@ WORKDIR $APP_HOME
 COPY app $APP_HOME
 COPY ./entrypoint.prod.sh $APP_HOME
 
-HEALTHCHECK --interval=12s --timeout=12s CMD python -c "import requests; requests.get('http://localhost:8080', timeout=2)"
+HEALTHCHECK --interval=60s --timeout=12s CMD python -c "import requests; requests.get('http://localhost:5000', timeout=2)"
 
 # CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"]
 ENTRYPOINT [ "/bin/sh", "-c", "sh ${APP_HOME}/entrypoint.prod.sh" ]
