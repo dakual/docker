@@ -1,0 +1,89 @@
+version: "3.1"
+
+services:
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    volumes:
+      - ./elasticsearch/conf/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z
+      # - ./elasticsearch/certs:/usr/share/elasticsearch/config/certs
+      # - ./elasticsearch/data:/usr/share/elasticsearch/data
+    networks:
+      - relk
+    ports:
+      - 9200:9200
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    volumes:
+      - ./kibana/conf/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+      # - ./kibana/certs:/usr/share/kibana/config/certs
+      # - ./kibana/data:/usr/share/kibana/data
+    # environment:
+    #   - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - relk
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601
+    mem_limit: ${MEM_LIMIT}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  logstash:
+    container_name: logstash
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+    # command: logstash -f /etc/logstash/conf.d/logstash.conf
+    volumes:
+      # - ./logstash/pipeline/logstash.conf:/etc/logstash/conf.d/logstash.conf:ro,Z
+      # - ./logstash/conf:/etc/logstash/conf.d:ro,Z
+      - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logstash/conf/logstash.yml:/usr/share/logstash/config/logstash.yml
+    ports:
+      - 5000:5000
+    mem_limit: ${MEM_LIMIT}
+    environment:
+      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
+      LOG_LEVEL: debug
+    networks:
+      - relk
+    depends_on:
+      - rabbitmq
+      - elasticsearch
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    volumes:
+      - ./rabbitmq/conf/definitions.json:/etc/rabbitmq/definitions.json
+      - ./rabbitmq/conf/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    ports:
+      - 5672:5672
+      - 15672:15672
+    mem_limit: ${MEM_LIMIT}
+    networks:
+      - relk
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  relk:
+    driver: bridge
