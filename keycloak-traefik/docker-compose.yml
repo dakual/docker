@@ -1,0 +1,103 @@
+version: '3'
+
+services:
+  traefik:
+    container_name: traefik
+    hostname: traefik
+    image: "traefik:v3.0"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+    ports:
+      - "80:80"
+      - "1080:8080"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - keycloak
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - 5432:5432
+    networks:
+      - keycloak
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:20.0
+    container_name: keycloak
+    hostname: auth.example.com
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./certs/server.crt.pem:/opt/keycloak/conf/server.crt.pem
+      - ./certs/server.key.pem:/opt/keycloak/conf/server.key.pem
+    environment:
+      KC_DB: postgres
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: admin
+      KC_DB_SCHEMA: public
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: 5432
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: 8080
+      KC_HTTPS_CLIENT_AUTH: request
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/server.crt.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/server.key.pem
+      KC_HTTPS_PORT: 8443
+      KC_HTTPS_PROTOCOLS: TLSv1.3,TLSv1.2
+      KC_PROXY_ADDRESS_FORWARDING: "true"
+      KC_HOSTNAME: auth.example.com
+      KC_METRICS_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_TRANSACTION_XA_ENABLED: "false"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY: edge
+      KC_LOG_LEVEL: info
+      KC_FEATURES:
+        admin2
+        admin
+        docker
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=keycloak"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.example.com`)"
+      # - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    entrypoint: /opt/keycloak/bin/kc.sh start --auto-build --cache=local
+    ports:
+      - 8090:8080
+      - 8443:8443
+    networks:
+      - keycloak
+    depends_on:
+      - postgres
+      - traefik
+
+volumes:
+  postgres_data:
+    driver: local
+networks:
+  keycloak:
+    driver: bridge
